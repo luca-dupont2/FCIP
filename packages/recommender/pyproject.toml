@@ -1,0 +1,15 @@
+[project]
+name = "fcip-recommender"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "FCIP recommendation engine"
+dependencies = [
+    "fcip-shared",
+]
+
+[tool.uv.sources]
+fcip-shared = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

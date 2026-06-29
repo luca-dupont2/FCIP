@@ -1,0 +1,18 @@
+Vivado Timing Summary Report
+-----------------------------------
+
+Clock         | WNS    | TNS    | Failing Paths
+-----------------------------------------------
+clk_100       | -0.452 | -12.54 | 15
+clk_200       | 0.123  | 0.000  | 0
+clk_pll_out   | -1.234 | -45.67 | 42
+
+-----------------------------------
+Max Delay Path
+Slack : -1.234
+Source : inst_core/inst_pipe/regs_reg[3]/D
+Destination : inst_core/inst_pipe/result_reg[0]/CE
+Data Path Delay : 3.456
+Logic Levels : 12
+
+-----------------------------------

@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.venv/
+
+# Environment
+.env
+
+# Node
+node_modules/
+frontend/dist/
+
+# Models
+packages/predictor/models/*.pkl
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# FCIP local config
+.fcip/
+
+# Artifacts
+artifacts/
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# Alembic
+packages/backend/alembic/versions/__pycache__/
+
+# CSS (legacy)
+*.css
+/css/

@@ -1,0 +1,17 @@
+Vivado Timing Summary Report
+-----------------------------------
+
+Clock         | WNS    | TNS    | Failing Paths
+-----------------------------------------------
+clk_100       | -2.876 | -156.32| 89
+clk_250       | -0.123 | -3.45  | 5
+
+-----------------------------------
+Max Delay Path
+Slack : -2.876
+Source : inst_alu/out_reg[31]/D
+Destination : inst_regfile/data_out_reg[31]/D
+Data Path Delay : 5.678
+Logic Levels : 18
+
+-----------------------------------

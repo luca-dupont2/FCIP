@@ -1,0 +1,14 @@
+Quartus Timing Analyzer Summary
+----------------------------------------------------
+
+Clock           | Slack   | TNS    | Failing Paths
+----------------------------------------------------
+clk_50          | -0.32   | -4.56  | 8
+clk_100         | 0.567   | 0.000  | 0
+clk_ddr         | -1.89   | -23.45 | 22
+
+----------------------------------------------------
+Worst-case Slack: -1.890
+From: inst_fifo|data_out[7]
+To: inst_decoder|result_reg[15]
+Data Delay: 4.321

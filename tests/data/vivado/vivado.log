@@ -1,0 +1,17 @@
+2026-06-27 08:00:01 Starting Vivado
+2026-06-27 08:00:02 Starting RTL Synthesis
+2026-06-27 08:00:03 synth_design -top my_module -part xcvu9p-flgb2104-2-e
+2026-06-27 09:30:45 Finished RTL Synthesis
+2026-06-27 09:30:46 Starting Implementation
+2026-06-27 09:30:47 Starting opt_design
+2026-06-27 09:31:12 opt_design completed
+2026-06-27 09:31:13 Starting place_design
+2026-06-27 10:45:30 place_design completed
+2026-06-27 10:45:31 Starting route_design
+2026-06-27 12:15:22 route_design completed
+2026-06-27 12:15:23 Implementation Complete
+2026-06-27 12:15:24 Starting Bitstream Generation
+2026-06-27 12:15:25 Starting write_bitstream
+2026-06-27 13:00:10 write_bitstream completed
+2026-06-27 13:00:11 Bitstream Generation Complete
+Total CPU time: 05:00:10

@@ -1,0 +1,12 @@
+Info: *******************************************************************
+Info: Running Quartus compilation
+Info: *******************************************************************
+Info: Analysis and Synthesis started at 08:00:00
+Info: Analysis and Synthesis ended at 08:45:00, elapsed time: 00:45:00
+Info: Fitter started at 08:45:01
+Info: Fitter ended at 10:15:30, elapsed time: 01:30:29
+Info: Assembler started at 10:15:31
+Info: Assembler ended at 10:25:00, elapsed time: 00:09:29
+Info: Timing Analyzer started at 10:25:01
+Info: TimeQuest Timing Analyzer ended at 10:30:00, elapsed time: 00:05:00
+Info: Total compilation time: 02:30:00

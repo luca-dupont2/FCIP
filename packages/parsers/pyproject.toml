@@ -1,0 +1,16 @@
+[project]
+name = "fcip-parsers"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "FCIP report parsers"
+dependencies = [
+    "fcip-shared",
+    "structlog>=24.0",
+]
+
+[tool.uv.sources]
+fcip-shared = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

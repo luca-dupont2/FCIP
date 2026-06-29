@@ -1,0 +1,13 @@
+Quartus Timing Analyzer Summary
+----------------------------------------------------
+
+Clock           | Slack   | TNS    | Failing Paths
+----------------------------------------------------
+clk_50          | -3.45   | -123.4 | 56
+clk_100         | -0.78   | -12.34 | 15
+
+----------------------------------------------------
+Worst-case Slack: -3.450
+From: inst_pipeline|out_reg[31]
+To: inst_memory|addr_reg[31]
+Data Delay: 6.789
