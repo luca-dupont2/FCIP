@@ -13,6 +13,7 @@ from fcip_shared.models.experiment import Experiment
 from fcip_shared.models.report import Report
 from fcip_shared.models.model_metadata import ModelMetadata
 from fcip_backend.api.deps import get_db
+from typing import Optional
 
 router = APIRouter()
 
@@ -80,21 +81,26 @@ async def predict(body: PredictRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
-async def _extract_real_training_data(db: AsyncSession):
+async def _extract_real_training_data(db: AsyncSession, project_id: Optional[uuid.UUID] = None):
     from fcip_predictor.features import engineer_features, experiment_to_feature_dict
 
-    result = await db.execute(
+    query = (
         select(Experiment)
-        .where(Experiment.source == "tracked")
+        .where(Experiment.source.in_(["tracked", "user_upload"]))
         .where(Experiment.status.in_(["success", "failed"]))
         .options(selectinload(Experiment.reports))
     )
+    if project_id:
+        query = query.where(Experiment.project_id == project_id)
+
+    result = await db.execute(query)
     experiments = result.scalars().all()
 
     exp_dicts = []
     targets_wns = []
     targets_runtime = []
     targets_success = []
+    sources = []
 
     for exp in experiments:
         report = exp.reports[0] if exp.reports else None
@@ -111,13 +117,14 @@ async def _extract_real_training_data(db: AsyncSession):
         targets_runtime.append(runtime)
 
         targets_success.append(1 if wns >= 0 else 0)
+        sources.append(exp.source)
 
     if not exp_dicts:
         return None
 
     import numpy as np
     X = engineer_features(exp_dicts)
-    return (X.values, np.array(targets_wns), np.array(targets_runtime), np.array(targets_success), len(exp_dicts))
+    return (X.values, np.array(targets_wns), np.array(targets_runtime), np.array(targets_success), len(exp_dicts), np.array(sources))
 
 
 @router.post("/train", status_code=202)
@@ -127,8 +134,15 @@ async def train_models(body: ModelTrainRequest = ModelTrainRequest(), db: AsyncS
         from fcip_predictor.registry import ModelRegistry
 
         real_data = None
+        project_uuid = None
+        if body.project_id:
+            try:
+                project_uuid = uuid.UUID(body.project_id)
+            except ValueError:
+                return {"status": "failed", "error": f"invalid project_id: {body.project_id}"}
+        
         if body.data_source in ("auto", "real"):
-            real_data = await _extract_real_training_data(db)
+            real_data = await _extract_real_training_data(db, project_id=project_uuid)
 
         trainer = ModelTrainer()
         results = trainer.train_all(real_data=real_data, data_source=body.data_source)
@@ -178,11 +192,19 @@ async def list_models(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/retrain-status")
-async def retrain_status(db: AsyncSession = Depends(get_db)):
+async def retrain_status(project_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
     from fcip_shared.config import get_settings
 
     settings = get_settings()
-    new_count = await _count_new_tracked_experiments(db)
+    
+    project_uuid = None
+    if project_id:
+        try:
+            project_uuid = uuid.UUID(project_id)
+        except ValueError:
+            return {"should_retrain": False, "new_experiments_count": 0, "threshold": settings.MODEL_RETRAIN_THRESHOLD, "error": "invalid project_id"}
+    
+    new_count = await _count_new_tracked_experiments(db, project_id=project_uuid)
     threshold = settings.MODEL_RETRAIN_THRESHOLD
 
     return {
@@ -192,16 +214,18 @@ async def retrain_status(db: AsyncSession = Depends(get_db)):
     }
 
 
-async def _count_new_tracked_experiments(db: AsyncSession) -> int:
+async def _count_new_tracked_experiments(db: AsyncSession, project_id: Optional[uuid.UUID] = None) -> int:
     latest_trained = await db.execute(
         select(func.max(ModelMetadata.trained_at)).where(ModelMetadata.is_active == True)
     )
     last_trained_at = latest_trained.scalar()
 
     count_query = select(func.count()).select_from(Experiment).where(
-        Experiment.source == "tracked",
+        Experiment.source.in_(["tracked", "user_upload"]),
         Experiment.status.in_(["success", "failed"]),
     )
+    if project_id:
+        count_query = count_query.where(Experiment.project_id == project_id)
     if last_trained_at:
         count_query = count_query.where(Experiment.created_at > last_trained_at)
 

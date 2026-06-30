@@ -102,11 +102,18 @@ Your Vivado/Quartus Build
 
 The FPGA industry has no tool like this. EDA vendors give you the compiler. They don't give you a memory layer, a prediction engine, or a recommendation system for your builds.
 
-**Plunify InTime** tried prediction commercially — closed source, cloud-only, expensive. Gone.
+**Plunify InTime** is the commercial alternative — closed-source, expensive licensing, cloud or cluster deployment. Their moat: 20M+ build results across thousands of customers. But your data leaves your machine, and you can't see or modify how their ML works.
 
 **Academics** publish DSE papers with private datasets that are never shared. No public models exist for FPGA build prediction. Not on HuggingFace. Not from AMD/Xilinx. Not from Intel.
 
-FCIP is the only open, local-first option. And it gets smarter the more your team uses it.
+FCIP is the **open, local-first alternative**:
+- **Privacy**: Your data never leaves your machine (unlike InTime Cloud)
+- **Transparency**: See every line of code, understand exactly how models are trained
+- **Control**: Modify parsers, change models, customize for your workflow
+- **Cost**: Free (vs. commercial licensing)
+- **Learning**: Understand the ML, not just use it as a black box
+
+**Tradeoff**: InTime has 20M builds and auto-pilot optimization. FCIP starts with synthetic data and requires manual tracking. But after 50+ of **your** builds, FCIP knows **your** designs better than any generic model ever could.
 
 ## Current State (MVP)
 
@@ -127,9 +134,9 @@ FCIP is the only open, local-first option. And it gets smarter the more your tea
 
 **Now (MVP)**: Track, compare, predict (synthetic), recommend. Pipeline works end-to-end.
 
-**V1 (Real data)**: Integrate HLSFactory benchmarks to generate ~5K real Vivado samples. Models trained on real synthesis data. Dramatically better utilization and runtime predictions. Timing predictions still approximate (HLS estimates, not post-implementation).
+**V1 (User builds)**: Your team's own build history trains project-specific models. Every `fcip track` makes predictions better for *your* designs. Optional dataset export/import for team-level data pooling. This is where FCIP becomes irreplaceable — the more you use it, the more valuable it becomes, and no competitor can replicate your private training data.
 
-**V2 (The moat)**: Your team's own build history trains project-specific models. Every `fcip track` makes predictions better for *your* designs. Optional dataset export/import for team-level data pooling. This is where FCIP becomes irreplaceable — the more you use it, the more valuable it becomes, and no competitor can replicate your private training data.
+**Not pursuing**: HLSFactory benchmark integration. HLS synthesis estimates ≠ post-implementation timing, and generic benchmarks don't capture your proprietary designs. Strategic focus: user's own tracked builds.
 
 ## Get Started
 

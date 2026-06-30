@@ -27,6 +27,7 @@ class PredictionResponse(BaseModel):
 class ModelTrainRequest(BaseModel):
     force: bool = False
     data_source: str = "auto"
+    project_id: str | None = None
 
 
 class ModelTrainResponse(BaseModel):

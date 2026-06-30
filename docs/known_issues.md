@@ -6,20 +6,12 @@
 
 ### KI-001: Alembic has zero migration files
 
-**Status**: Open (workaround in place — lifespan event creates tables on startup)
+**Status**: Fixed — initial migration generated (`9054160ad76c_initial.py`)
 **Severity**: Critical
-**Affected files**: `packages/backend/alembic/versions/` (empty directory)
-**Impact**: `alembic upgrade head` is a no-op. Docker entrypoint runs `alembic upgrade head` before starting uvicorn, so tables are never created in Docker deployments. All API calls fail with database errors.
+**Affected files**: `packages/backend/alembic/versions/9054160ad76c_initial.py`
+**Impact**: Resolved. Migration now exists and can be applied with `alembic upgrade head`.
 
-**Root cause**: Initial migration was never generated.
-
-**Fix**:
-1. Start a running Postgres instance matching `.env` config
-2. Run `cd packages/backend && alembic revision --autogenerate -m "initial"`
-3. Verify the generated migration includes all 6 tables (projects, experiments, reports, artifacts, recommendations, model_metadata) and all indexes
-4. Commit the migration file
-
-**Alternative fix**: Add a FastAPI lifespan event that calls `init_db()` on startup — this makes the backend self-healing regardless of Alembic state. Both approaches (lifespan + migrations) should coexist.
+**Fix applied**: Generated initial migration with `alembic revision --autogenerate -m "initial"`. Lifespan event in `main.py` also calls `init_db()` on startup as a safety net.
 
 ---
 
@@ -175,14 +167,17 @@ exec uvicorn fcip_backend.main:app --host 0.0.0.0 --port 8000
 
 ### KI-009: Redis is declared but never used
 
-**Status**: Fixed — removed from deps, docker-compose, config, and .env.example
+**Status**: Fixed — Redis completely removed from codebase
 **Severity**: Low
-**Affected files**: `packages/shared/pyproject.toml`, `docker-compose.yml`
-**Impact**: `redis[hiredis]>=5.0` is installed and `REDIS_URL` configured, but no code reads from or writes to Redis. No caching layer exists. Wasted container resource in Docker.
+**Affected files**: Removed from `packages/shared/fcip_shared/config.py`, `packages/backend/pyproject.toml`, `docker-compose.yml`, `.env.example`; deleted `packages/shared/fcip_shared/cache.py`
+**Impact**: Redis was installed as `redis[hiredis]>=5.0` and configured in `.env` but zero code paths imported or used the cache module. Dead code增加了 maintenance burden and confusion.
 
-**Fix options**:
-- A) Add minimal caching: Cache `/api/predict/models` results with 60s TTL. Use `redis.asyncio` in a new `packages/shared/fcip_shared/cache.py` module.
-- B) Remove for MVP: Drop `redis` from deps and docker-compose.yml. Add back in V1 when actual caching is needed.
+**Fix**: Removed entirely:
+- Deleted `fcip_shared/cache.py` (96 lines, never imported)
+- Removed `REDIS_URL` from `AppSettings`
+- Removed `redis[hiredis]>=5.0` from backend dependencies
+- Removed `redis` service from `docker-compose.yml`
+- Removed `REDIS_URL` from `.env.example`
 
 ---
 
@@ -240,8 +235,18 @@ filterwarnings = ["ignore::DeprecationWarning:joblib"]
 **Status**: Open (breaking change from Phase 1)
 **Severity**: Low (internal API only)
 **Affected files**: `packages/predictor/fcip_predictor/trainer.py`
-**Impact**: `train_all()` signature changed from `train_all(db_session=None)` to `train_all(real_data=None, data_source="auto")`. Any code passing a DB session directly to `train_all()` will fail. The predictions endpoint now extracts real data via `_extract_real_training_data(db)` before calling `train_all()`.
-**Migration**: Callers must extract real training data from DB first, then pass it as `(X, y_timing, y_runtime, y_classify)` tuple to `real_data`.
+**Impact**: `train_all()` signature changed from `train_all(db_session=None)` to `train_all(real_data=None, data_source="auto")`. Callers must extract real training data from DB first via `_extract_real_training_data(db)` helper in `predictions.py`, then pass as `(X, y_timing, y_runtime, y_classify, count, sources)` tuple to `real_data`.
+
+**Training modes**:
+- `data_source="synthetic"` — generates 2000 synthetic samples, trains only on synthetic
+- `data_source="real"` — trains on real data only; requires >=50 samples or raises `InsufficientTrainingDataError`
+- `data_source="auto"` (default) — uses real data weighted 5:1 over synthetic if >=50 real samples exist; falls back to synthetic-only
+
+**How models are actually trained**:
+1. **Script** (`scripts/train_models.py`): Synthetic-only, no DB connection. Default for local dev.
+2. **API endpoint** (`POST /api/predict/train`): Extracts real data from PostgreSQL, trains with specified `data_source`. Used by CLI `fcip train` command.
+
+**Current state**: Models trained on synthetic data by default. Real data training requires running `fcip track` to ingest user builds.
 
 ### KI-016: Training is synchronous despite 202 status code
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import String, Integer, Float, Text, DateTime, JSON, Boolean
+from sqlalchemy import String, Integer, Float, Text, DateTime, JSON, Boolean, ForeignKey, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from fcip_shared.database import Base
@@ -25,3 +25,4 @@ class ModelMetadata(Base):
     hyperparams: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
     data_source: Mapped[str] = mapped_column(String(20), nullable=False, default="synthetic")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)

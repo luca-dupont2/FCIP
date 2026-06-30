@@ -228,6 +228,16 @@ def track(
     rprint(f"[green]Imported experiment: {exp_id}[/green]")
     rprint(f"  Timing files: {len(timing_data)}, Utilization files: {len(util_data)}, Log files: {len(runtime_data)}")
 
+    # Auto-retrain check
+    try:
+        status = client.get(f"/api/predict/retrain-status?project_id={proj_id}")
+        if status.get("should_retrain", False):
+            rprint(f"[yellow]Retrain threshold reached ({status.get('new_experiments_count', 0)} new experiments). Triggering background retrain...[/yellow]")
+            client.post("/api/predict/train", json={"data_source": "auto", "project_id": proj_id})
+            rprint("[green]Retrain initiated[/green]")
+    except Exception as e:
+        rprint(f"[dim]Auto-retrain check failed: {e}[/dim]")
+
     if config and "tracking" in config:
         config["tracking"]["last_import"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         _save_config(config)
@@ -351,6 +361,7 @@ def recommend(
 def train(
     force: bool = typer.Option(False, help="Force retrain even if threshold not met"),
     data_source: str = typer.Option("auto", help="Data source: auto, real, or synthetic"),
+    project_id: str = typer.Option(None, help="Project ID for project-scoped training"),
 ):
     """Train or retrain prediction models."""
     client = _get_api_client()
@@ -362,7 +373,10 @@ def train(
             return
 
     try:
-        result = client.post("/api/predict/train", json={"data_source": data_source})
+        body = {"data_source": data_source}
+        if project_id:
+            body["project_id"] = project_id
+        result = client.post("/api/predict/train", json=body)
     except Exception as e:
         rprint(f"[red]Training failed: {e}[/red]")
         raise SystemExit(1)
@@ -393,6 +407,147 @@ def train(
         )
 
     console.print(table)
+
+
+@app.command()
+def dataset_export(
+    output: Path = typer.Argument(..., help="Output JSONL file path"),
+    project_id: str = typer.Option(None, help="Project ID to export (default: all projects)"),
+    confirm: bool = typer.Option(False, help="Confirm export when data sharing is disabled"),
+):
+    """Export experiments and reports as JSON Lines for sharing/backup."""
+    # Check privacy settings
+    from fcip_shared.config import get_settings
+    settings = get_settings()
+    
+    if not settings.PRIVACY_DATA_SHARING and not confirm:
+        rprint("[red]Data sharing is disabled in config. Use --confirm to override.[/red]")
+        rprint("  Run 'fcip config set privacy.data_sharing=on' to enable.")
+        raise SystemExit(1)
+    
+    client = _get_api_client()
+    
+    params = {}
+    if project_id:
+        params["project_id"] = project_id
+    
+    # Get all experiments
+    experiments = client.get("/api/experiments", params=params)
+    
+    import json
+    with open(output, "w") as f:
+        for exp in experiments.get("items", []):
+            exp_id = exp["id"]
+            reports = client.get(f"/api/reports?experiment_id={exp_id}")
+            recommendations = client.get(f"/api/recommend?experiment_id={exp_id}")
+            
+            line = {
+                "experiment": exp,
+                "reports": reports,
+                "recommendations": recommendations,
+            }
+            f.write(json.dumps(line) + "\n")
+    
+    rprint(f"[green]Exported {len(experiments.get('items', []))} experiments to {output}[/green]")
+
+
+@app.command()
+def dataset_import(
+    input: Path = typer.Argument(..., help="Input JSONL file path"),
+    source: str = typer.Option("user_upload", help="Source label for imported data"),
+    project_id: str = typer.Option(None, help="Project ID to import into"),
+):
+    """Import experiments from a JSONL file exported by another FCIP instance."""
+    client = _get_api_client()
+    config = _load_config()
+    
+    if not config:
+        rprint("[red]Not initialized. Run 'fcip init' first.[/red]")
+        raise SystemExit(1)
+    
+    proj_id = project_id
+    if not proj_id:
+        projects = client.get("/api/projects")
+        proj_name = config.get("project", {}).get("name", "")
+        for p in projects:
+            if p.get("name") == proj_name:
+                proj_id = p["id"]
+                break
+        if not proj_id and projects:
+            proj_id = projects[0]["id"]
+    
+    if not proj_id:
+        rprint("[red]No project found. Run 'fcip init' first.[/red]")
+        raise SystemExit(1)
+    
+    import json
+    imported = 0
+    with open(input, "r") as f:
+        for line in f:
+            data = json.loads(line)
+            exp_data = data.get("experiment", {})
+            exp_data["project_id"] = proj_id
+            exp_data["source"] = source
+            
+            exp_resp = client.post("/api/experiments", json=exp_data)
+            exp_id = exp_resp.get("id")
+            
+            if exp_id:
+                for report in data.get("reports", []):
+                    report["experiment_id"] = exp_id
+                    client.post("/api/reports", json=report)
+                imported += 1
+    
+    rprint(f"[green]Imported {imported} experiments from {input}[/green]")
+
+
+@app.command()
+def model_status(
+    project_id: str = typer.Option(None, help="Project ID (default: global models)"),
+):
+    """Show model versions, active status, and training info."""
+    client = _get_api_client()
+    
+    params = {}
+    if project_id:
+        params["project_id"] = project_id
+    
+    models = client.get("/api/predict/models", params=params)
+    
+    if not models:
+        rprint("[yellow]No models found[/yellow]")
+        return
+    
+    table = rich.table.Table(title="Model Status")
+    table.add_column("ID", style="dim")
+    table.add_column("Type", style="bold")
+    table.add_column("Version", justify="right")
+    table.add_column("Data Source", justify="center")
+    table.add_column("Active", justify="center")
+    table.add_column("Dataset Size", justify="right")
+    table.add_column("Accuracy", justify="right")
+    table.add_column("Trained At")
+    
+    for m in models:
+        table.add_row(
+            m.get("id", "")[:8],
+            m.get("model_type", ""),
+            str(m.get("version", "?")),
+            m.get("data_source", "?"),
+            "✓" if m.get("is_active") else "✗",
+            str(m.get("dataset_size", "?")),
+            f"{m.get('accuracy', 0):.4f}" if m.get("accuracy") is not None else "N/A",
+            m.get("trained_at", "")[:19] if m.get("trained_at") else "N/A",
+        )
+    
+    console.print(table)
+    
+    # Show retrain status
+    try:
+        status = client.get("/api/predict/retrain-status", params=params)
+        rprint(f"\nRetrain status: {status.get('new_experiments_count', 0)}/{status.get('threshold', '?')} new experiments")
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

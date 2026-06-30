@@ -22,6 +22,17 @@ MIN_REAL_SAMPLES = 50
 REAL_SAMPLE_WEIGHT = 5.0
 SYNTHETIC_SAMPLE_WEIGHT = 1.0
 
+# Per-source weights for V2 data source differentiation
+SOURCE_WEIGHTS = {
+    "tracked": 1.0,       # User's own tracked builds (highest trust)
+    "user_upload": 0.8,   # Imported from teammate (trusted but not own)
+    "synthetic": 1.0,     # Synthetic baseline
+}
+
+def get_source_weight(source: str) -> float:
+    """Get weight for a data source."""
+    return SOURCE_WEIGHTS.get(source, 1.0)
+
 
 class ModelTrainer:
     def __init__(self, model_dir: Path | str | None = None, n_synthetic: int = 2000) -> None:
@@ -39,18 +50,28 @@ class ModelTrainer:
                     "db_session required for real data training",
                     detail="db_session required for real data training",
                 )
-            X_real, y_wns_real, y_runtime_real, y_success_real, real_count = real_data
+            # real_data now has 6 elements: X, y_wns, y_runtime, y_success, count, sources
+            if len(real_data) == 6:
+                X_real, y_wns_real, y_runtime_real, y_success_real, real_count, sources = real_data
+            else:
+                # Backward compatibility
+                X_real, y_wns_real, y_runtime_real, y_success_real, real_count = real_data
+                sources = np.full(real_count, "tracked")
             if real_count < MIN_REAL_SAMPLES:
                 raise InsufficientTrainingDataError(
                     f"Insufficient real experiments for training. Have {real_count}, need {MIN_REAL_SAMPLES}.",
                     detail=f"Insufficient real experiments for training. Have {real_count}, need {MIN_REAL_SAMPLES}.",
                 )
-            return self._train_real_only(X_real, y_wns_real, y_runtime_real, y_success_real)
+            return self._train_real_only(X_real, y_wns_real, y_runtime_real, y_success_real, sources)
 
         if real_data is not None:
-            X_real, y_wns_real, y_runtime_real, y_success_real, real_count = real_data
+            if len(real_data) == 6:
+                X_real, y_wns_real, y_runtime_real, y_success_real, real_count, sources = real_data
+            else:
+                X_real, y_wns_real, y_runtime_real, y_success_real, real_count = real_data
+                sources = np.full(real_count, "tracked")
             if real_count >= MIN_REAL_SAMPLES:
-                return self._train_mixed(X_real, y_wns_real, y_runtime_real, y_success_real, real_count)
+                return self._train_mixed(X_real, y_wns_real, y_runtime_real, y_success_real, real_count, sources)
             logger.info(
                 "only %d real experiments (need %d), using synthetic data",
                 real_count, MIN_REAL_SAMPLES,
@@ -68,9 +89,9 @@ class ModelTrainer:
             r["data_source"] = "synthetic"
         return results
 
-    def _train_real_only(self, X_real, y_wns, y_runtime, y_success) -> dict:
+    def _train_real_only(self, X_real, y_wns, y_runtime, y_success, sources) -> dict:
         results = {}
-        weights = np.full(len(y_wns), REAL_SAMPLE_WEIGHT)
+        weights = np.array([get_source_weight(s) for s in sources])
         results["timing"] = self._train_regressor(X_real, y_wns, "timing_model", "WNS", sample_weight=weights)
         results["runtime"] = self._train_regressor(X_real, y_runtime, "runtime_model", "Runtime", sample_weight=weights)
         results["timing_classifier"] = self._train_classifier(X_real, y_success, "timing_classifier_model", "Timing Success", sample_weight=weights)
@@ -78,7 +99,7 @@ class ModelTrainer:
             r["data_source"] = "real"
         return results
 
-    def _train_mixed(self, X_real, y_wns_real, y_runtime_real, y_success_real, real_count) -> dict:
+    def _train_mixed(self, X_real, y_wns_real, y_runtime_real, y_success_real, real_count, sources) -> dict:
         X_synth, y_wns_synth, y_runtime_synth, y_success_synth = self._generate_synthetic_data()
         synth_count = len(y_wns_synth)
 
@@ -87,10 +108,9 @@ class ModelTrainer:
         y_runtime = np.concatenate([y_runtime_real, y_runtime_synth])
         y_success = np.concatenate([y_success_real, y_success_synth])
 
-        weights = np.concatenate([
-            np.full(real_count, REAL_SAMPLE_WEIGHT),
-            np.full(synth_count, SYNTHETIC_SAMPLE_WEIGHT),
-        ])
+        real_weights = np.array([get_source_weight(s) for s in sources])
+        synth_weights = np.full(synth_count, SYNTHETIC_SAMPLE_WEIGHT)
+        weights = np.concatenate([real_weights, synth_weights])
 
         results = {}
         results["timing"] = self._train_regressor(X_combined, y_wns, "timing_model", "WNS", sample_weight=weights)

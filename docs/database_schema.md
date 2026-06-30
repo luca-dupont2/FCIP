@@ -46,9 +46,10 @@ model_metadata  (standalone)
 | device | VARCHAR(100) | nullable | Target FPGA part number |
 | seed | INTEGER | nullable | Implementation seed |
 | status | VARCHAR(20) | NOT NULL, default "running" | running/success/failed/timeout |
-| compile_options | JSONB | nullable, default `{}` | Strategy, retiming, phys_opt, etc. |
-| machine_info | JSONB | nullable, default `{}` | CPU, RAM, OS info |
-| changed_files | JSONB | nullable, default `[]` | List of changed filenames |
+| compile_options | JSON | nullable, default `{}` | Strategy, retiming, phys_opt, etc. |
+| machine_info | JSON | nullable, default `{}` | CPU, RAM, OS info |
+| changed_files | JSON | nullable, default `[]` | List of changed filenames |
+| source | VARCHAR(20) | NOT NULL, default "tracked" | "tracked", "synthetic", "user_upload" |
 | created_at | TIMESTAMPTZ | NOT NULL | Creation time |
 | completed_at | TIMESTAMPTZ | nullable | Completion time |
 
@@ -69,7 +70,7 @@ model_metadata  (standalone)
 |--------|------|-------------|-------------|
 | id | UUID | PK | Primary key |
 | experiment_id | UUID | FK → experiments.id, CASCADE | Parent experiment |
-| report_type | VARCHAR(20) | NOT NULL | "timing", "utilization", "runtime" |
+| report_type | VARCHAR(20) | NOT NULL | "timing", "utilization", "runtime", "hls_synth", "combined" |
 | wns | FLOAT | nullable | Worst Negative Slack (ns) |
 | tns | FLOAT | nullable | Total Negative Slack (ns) |
 | failing_paths | INTEGER | nullable | Number of failing paths |
@@ -125,6 +126,7 @@ model_metadata  (standalone)
 | experiment_id | UUID | FK → experiments.id, CASCADE | Parent experiment |
 | rule_name | VARCHAR(100) | NOT NULL | e.g. "R01_WNS_VIOLATION" |
 | category | VARCHAR(50) | NOT NULL | "timing", "utilization", "runtime", "strategy" |
+| priority | VARCHAR(20) | nullable | "critical", "high", "medium", "low" |
 | message | TEXT | NOT NULL | Recommendation text |
 | confidence | FLOAT | nullable | Rule confidence (0–1) |
 | created_at | TIMESTAMPTZ | NOT NULL | When the recommendation was generated |
@@ -146,9 +148,12 @@ model_metadata  (standalone)
 | accuracy | FLOAT | nullable | Model accuracy/F1 score |
 | training_duration | FLOAT | nullable | Training time (seconds) |
 | trained_at | TIMESTAMPTZ | NOT NULL | Training timestamp |
-| hyperparams | JSONB | nullable, default `{}` | Model hyperparameters |
+| hyperparams | JSON | nullable, default `{}` | Model hyperparameters |
+| data_source | VARCHAR(20) | NOT NULL, default "synthetic" | "synthetic", "real", "mixed" |
+| is_active | BOOLEAN | NOT NULL, default true | Whether this model is currently active |
+| project_id | UUID | FK → projects.id, SET NULL | Optional project-specific model |
 
-No foreign keys — standalone metadata table.
+No foreign keys except optional `project_id` — mostly standalone metadata table.
 
 ---
 
@@ -163,3 +168,5 @@ alembic revision --autogenerate -m "description"  # create new migration
 ```
 
 The async Alembic environment is configured in `packages/backend/alembic/env.py` to use `fcip_shared.database` for the engine and `Base.metadata` for autogeneration.
+
+**Note on JSON vs JSONB**: All JSON columns use portable `JSON` type (not PostgreSQL-specific `JSONB`) to maintain SQLite compatibility for tests. Tests run on in-memory SQLite which doesn't support `JSONB`.

@@ -30,6 +30,9 @@ class AppSettings(BaseSettings):
     REAL_SAMPLE_WEIGHT: float = 5.0
     SYNTHETIC_SAMPLE_WEIGHT: float = 1.0
 
+    # Privacy controls
+    PRIVACY_DATA_SHARING: bool = True  # Allow dataset export by default
+
 
 def get_settings() -> AppSettings:
     return AppSettings()

@@ -99,6 +99,7 @@ Create an experiment.
 | machine_info | object | no | CPU, RAM, OS |
 | changed_files | string[] | no | List of changed filenames |
 | completed_at | string (datetime) | no | Completion timestamp |
+| source | string | no | "tracked", "synthetic", "user_upload" (default: "tracked") |
 
 **Response**: `201` — `ExperimentResponse`
 
@@ -313,7 +314,26 @@ Mode 2 — By raw features:
 
 ### `POST /api/predict/train`
 
-Trigger model retraining with synthetic data.
+Trigger model retraining with configurable data source.
+
+**Request Body**:
+
+```json
+{
+  "data_source": "auto",
+  "project_id": "uuid-optional"
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| data_source | string | "auto" | "auto", "synthetic", or "real" |
+| project_id | string | null | Train only on this project's experiments (optional) |
+
+**Training modes**:
+- `synthetic` — Generate 2000 synthetic samples, train only on synthetic
+- `real` — Train on real data only; requires >=50 samples or returns 422
+- `auto` (default) — Use real data weighted 5:1 over synthetic if >=50 real samples; fall back to synthetic-only
 
 **Response**: `202`
 
@@ -321,10 +341,37 @@ Trigger model retraining with synthetic data.
 {
   "status": "trained",
   "results": {
-    "timing_model": { "mae": 0.12, "rmse": 0.18 },
-    "runtime_model": { "mae": 320.0, "rmse": 450.0 },
-    "timing_classifier_model": { "accuracy": 0.89, "f1": 0.87 }
+    "timing_model": {
+      "model_type": "timing_model",
+      "version": 3,
+      "dataset_size": 2150,
+      "data_source": "mixed",
+      "metrics": {"mae": 0.12, "rmse": 0.18},
+      "duration": 2.3
+    },
+    "runtime_model": {...},
+    "timing_classifier_model": {...}
   }
+}
+```
+
+### `GET /api/predict/retrain-status`
+
+Check if model retraining threshold has been reached.
+
+**Query Parameters**:
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| project_id | string | — | Check for specific project only |
+
+**Response**: `200`
+
+```json
+{
+  "should_retrain": false,
+  "new_experiments_count": 42,
+  "threshold": 100
 }
 ```
 
@@ -338,13 +385,29 @@ List trained model metadata from the database.
 {
   "id": "uuid",
   "model_type": "timing_model",
-  "version": 1,
-  "file_path": "packages/predictor/models/timing_model.pkl",
-  "dataset_size": 2000,
+  "version": 3,
+  "file_path": "packages/predictor/models/timing_model_v3.pkl",
+  "dataset_size": 2150,
   "accuracy": 0.89,
-  "trained_at": "2026-01-01T00:00:00Z"
+  "trained_at": "2026-01-01T00:00:00Z",
+  "data_source": "mixed",
+  "is_active": true,
+  "project_id": null
 }
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Model metadata ID |
+| model_type | string | "timing_model", "runtime_model", "timing_classifier_model" |
+| version | int | Version number (auto-incremented) |
+| file_path | string | Path to `.pkl` file on disk |
+| dataset_size | int | Training dataset rows |
+| accuracy | float | Model accuracy/F1 score |
+| trained_at | datetime | Training timestamp |
+| data_source | string | "synthetic", "real", or "mixed" |
+| is_active | bool | Whether this model is currently active |
+| project_id | UUID | Optional project-specific model |
 
 ---
 
@@ -378,6 +441,17 @@ Generate and persist recommendations for an experiment.
   }
 ]
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Recommendation ID |
+| experiment_id | UUID | Parent experiment |
+| rule_name | string | Rule identifier (R01-R12) |
+| category | string | "timing", "utilization", "runtime", "strategy" |
+| priority | string | "critical", "high", "medium", "low" |
+| message | string | Recommendation text |
+| confidence | float | Rule confidence (0-1) |
+| created_at | datetime | When generated |
 
 **Rules** (R01–R12):
 

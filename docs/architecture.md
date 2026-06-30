@@ -105,12 +105,20 @@ Each rule has a `condition` callable and a `message` template. Returns `Recommen
 Typer CLI that communicates with the backend via HTTP only (never direct DB):
 
 - `init` — Initialize a new FCIP project
-- `track` — Parse reports from a directory and upload
-- `upload` — Upload pre-parsed experiment data
-- `compare` — Compare two experiments
+- `track` — Parse reports from a directory and upload to backend
+- `compare` — Compare two experiments by ID
 - `predict` — Run prediction with features or experiment ID
 - `recommend` — Get recommendations for an experiment
-- `watch` — Beta: watch directory for new reports
+- `train` — Train or retrain prediction models (synthetic, real, or mixed)
+- `dataset-export` — Export experiments as JSONL for sharing/backup
+- `dataset-import` — Import experiments from JSONL file
+- `model-status` — Show trained model versions and status
+- `dataset-export` — Export experiments as JSONL for sharing/backup
+- `dataset-import` — Import experiments from JSONL file (team data pooling)
+
+Removed commands (Phase 1 cleanup):
+- `upload` — Was a no-op stub, removed
+- `watch` — Was just `tail -f`, removed
 
 ### frontend
 
@@ -138,7 +146,8 @@ Vite 8 + React 19 + Mantine 9 + TypeScript dashboard:
 | Package manager | uv | Fast, workspace-aware |
 | Web framework | FastAPI | Async, OpenAPI docs, dependency injection |
 | ORM | SQLAlchemy 2.0 async | Type-annotated, async sessions |
-| Database | PostgreSQL 16 | JSONB support, UUID, indexes |
+| Database | PostgreSQL 16 | JSON support, UUID, indexes (uses portable `JSON` not `JSONB` for SQLite test compat) |
 | Frontend | React + Mantine | Component library, accessible |
 | ML | scikit-learn | Robust for tabular, no GPU needed |
 | Containerization | Docker Compose | Single-command dev/prod setup |
+| Caching | None (Redis removed) | Redis was installed but never used; removed in Phase 1 |

@@ -16,13 +16,13 @@ FCIP (FPGA Compile Intelligence Platform) — a local-first experiment tracking,
 ### Python Tests (MUST run after any Python change)
 
 ```bash
-uv run pytest tests/ -v              # all 68 tests
-uv run pytest tests/unit/ -v         # unit only
-uv run pytest tests/integration/ -v  # integration only
-uv run pytest tests/performance/ -v  # performance benchmarks
+uv run pytest tests/ -v              # all 95 tests
+uv run pytest tests/unit/ -v         # unit only (79)
+uv run pytest tests/integration/ -v  # integration only (16)
+uv run pytest tests/performance/ -v  # performance only (5)
 ```
 
-Tests use SQLite in-memory via `aiosqlite` (no external services needed). All tests should pass in ~3s.
+Tests use SQLite in-memory via `aiosqlite` (no external services needed). All tests should pass in ~3-6s.
 
 ### Frontend Tests (MUST run after any frontend change)
 
@@ -147,15 +147,23 @@ fpga_proj/
 
 3. **Node version**: Frontend requires Node >=20.19 (Vite 8). Our dev machine is 20.15. Works with `@rolldown/binding-darwin-arm64` polyfill but some tools (oxlint, E2E tests) break. Node 22 recommended.
 
-4. **Alembic has no migrations**: The `alembic/versions/` directory is empty. Do not rely on `alembic upgrade head` to create tables. Use `init_db()` — the lifespan event calls it automatically on startup.
+4. **Alembic migration exists**: One migration file exists (`alembic/versions/9054160ad76c_initial.py`). Lifespan event also calls `init_db()` on startup as a safety net.
 
-5. **`train_all()` ignores the db_session argument**: The `ModelTrainer.train_all()` method accepts `db_session` but always uses synthetic data. Do not pass a DB session expecting it to train on real data — that feature doesn't exist yet (planned for V1).
+5. **`train_all()` uses `real_data` parameter**: The `ModelTrainer.train_all()` method signature is `train_all(real_data=None, data_source="auto")`. It does NOT accept `db_session` directly. Real data must be extracted via `_extract_real_training_data(db)` in the predictions endpoint first. Training modes:
+   - `data_source="synthetic"` — 2000 synthetic samples only
+   - `data_source="real"` — real data only, requires >=50 samples or raises 422
+   - `data_source="auto"` (default) — mixed with 5:1 real:synthetic weighting, falls back to synthetic if <50 real
+   - `data_source="hlsfactory"` — same as "real" but expects HLSFactory-sourced data
 
-6. ~~**Recommendation ORM model is missing `priority` column**~~: Fixed — `priority` column added to ORM model, schema, and router.
+6. **Redis removed**: Redis was installed but never used. Removed in Phase 1 from config, deps, docker-compose, and `.env.example`. Don't add Redis back without a concrete use case.
+
+7. **Recommendation ORM model has `priority`**: Fixed — `priority` column added to ORM model, schema, and router.
+
+8. **HLSFactory deprecated**: Scripts moved to `scripts/deprecated/`. HLSFactory provides HLS synthesis estimates only (not post-impl timing) and requires Vitis HLS. Strategic focus: user's own tracked builds via `fcip track`.
 
 ## Before Committing
 
-1. Run `uv run pytest tests/ -v` — must pass (68 tests)
+1. Run `uv run pytest tests/ -v` — must pass (95 tests)
 2. Run `cd frontend && npm test` — must pass (16 tests)
 3. Run `cd frontend && npx tsc -b --noEmit` — must exit with zero errors
 4. Never commit `.env`, `.pkl` model files, or secrets
