@@ -37,7 +37,7 @@ uvicorn fcip_backend.main:app --reload --port 8000
 cd frontend && npm run dev
 ```
 
-Open http://localhost:5173 — the frontend proxies `/api` to the backend on port 8000.
+Open http://localhost:3000 — the frontend proxies `/api` to the backend on port 8000.
 
 ### Docker Compose
 
@@ -45,7 +45,7 @@ Open http://localhost:5173 — the frontend proxies `/api` to the backend on por
 docker compose up          # postgres + backend + frontend
 ```
 
-- Frontend: http://localhost:5173
+- Frontend: http://localhost:3000
 - Backend API docs: http://localhost:8000/docs
 
 ### CLI
