@@ -43,6 +43,11 @@ coverage.xml
 # Alembic
 packages/backend/alembic/versions/__pycache__/
 
-# CSS (legacy)
-*.css
-/css/
+# AI agent instructions (kept locally, not committed)
+AGENTS.md
+
+# Internal documentation (product strategy, not for public)
+PLAN.md
+docs/product_pitch.md
+docs/known_issues.md
+docs/ml_llm_strategy.md
