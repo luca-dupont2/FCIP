@@ -23,6 +23,8 @@ export function ProjectsPage() {
   const createProject = useCreateProject();
   const deleteProject = useDeleteProject();
   const [opened, { open, close }] = useDisclosure(false);
+  const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [path, setPath] = useState('');
   const [description, setDescription] = useState('');
@@ -32,9 +34,14 @@ export function ProjectsPage() {
     createProject.mutate({ name, path: path.trim() || undefined, description }, { onSuccess: close });
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Delete this project and all its experiments?')) {
-      deleteProject.mutate(id);
+  const handleDeleteClick = (id: string) => {
+    setProjectToDelete(id);
+    openDelete();
+  };
+
+  const handleDeleteConfirm = () => {
+    if (projectToDelete) {
+      deleteProject.mutate(projectToDelete, { onSuccess: closeDelete });
     }
   };
 
@@ -75,7 +82,7 @@ export function ProjectsPage() {
                   <ActionIcon
                     color="red"
                     variant="subtle"
-                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleDelete(p.id); }}
+                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleDeleteClick(p.id); }}
                   >
                     <IconTrash size={16} />
                   </ActionIcon>
@@ -100,6 +107,16 @@ export function ProjectsPage() {
           <Group justify="flex-end">
             <Button variant="default" onClick={close}>Cancel</Button>
             <Button onClick={handleCreate} disabled={!name.trim()}>Create</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={deleteOpened} onClose={closeDelete} title="Delete Project" withCloseButton={false}>
+        <Stack gap="md">
+          <Text>Are you sure you want to delete this project and all its experiments? This action cannot be undone.</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeDelete}>Cancel</Button>
+            <Button color="red" onClick={handleDeleteConfirm} loading={deleteProject.isPending}>Delete</Button>
           </Group>
         </Stack>
       </Modal>
