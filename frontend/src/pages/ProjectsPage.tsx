@@ -24,11 +24,12 @@ export function ProjectsPage() {
   const deleteProject = useDeleteProject();
   const [opened, { open, close }] = useDisclosure(false);
   const [name, setName] = useState('');
+  const [path, setPath] = useState('');
   const [description, setDescription] = useState('');
   const navigate = useNavigate();
 
   const handleCreate = () => {
-    createProject.mutate({ name, description }, { onSuccess: close });
+    createProject.mutate({ name, path: path.trim() || undefined, description }, { onSuccess: close });
   };
 
   const handleDelete = (id: string) => {
@@ -94,6 +95,7 @@ export function ProjectsPage() {
       <Modal opened={opened} onClose={close} title="Create Project">
         <Stack gap="md">
           <TextInput label="Project Name" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
+          <TextInput label="Project Path (optional)" value={path} onChange={(e) => setPath(e.currentTarget.value)} placeholder="/home/user/projects/my-design" />
           <Textarea label="Description" value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
           <Group justify="flex-end">
             <Button variant="default" onClick={close}>Cancel</Button>
